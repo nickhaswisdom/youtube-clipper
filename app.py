@@ -51,7 +51,8 @@ def upload_and_trim(video_path, start, end, title):
 @app.route("/clip", methods=["POST"])
 def clip_videos():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True) # force=True ensures it parses JSON even if headers aren't set perfectly
+        print(data)
         main_url = data["mainUrl"]
         background_url = data.get("backgroundUrl")
         start = int(data["startSeconds"])
