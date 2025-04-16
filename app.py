@@ -2,12 +2,11 @@ from flask import Flask, request, jsonify
 from pytube import YouTube
 import os
 import tempfile
-from apivideo import ApiVideoClient
+import requests
 
 app = Flask(__name__)
 
 API_KEY = os.getenv("APIVIDEO_API_KEY")
-client = ApiVideoClient(api_key=API_KEY)
 
 def download_youtube_video(url):
     yt = YouTube(url)
@@ -17,13 +16,36 @@ def download_youtube_video(url):
     return temp_file.name
 
 def upload_and_trim(video_path, start, end, title):
-    video = client.videos.create(title=title)
+    # Step 1: Upload video to api.video
+    video_url = "https://api.api.video/v1/videos"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    
     with open(video_path, "rb") as f:
-        client.videos.upload(video.video_id, f)
-    clip = client.video_clipping.create(video.video_id, start, end)
+        response = requests.post(video_url, headers=headers, files={"file": f})
+
+    if response.status_code != 200:
+        return {"error": "Failed to upload video to api.video"}
+
+    video_id = response.json()["video"]["id"]
+
+    # Step 2: Clip video using API
+    clip_url = f"https://api.api.video/v1/videos/{video_id}/clips"
+    clip_data = {
+        "start": start,
+        "end": end
+    }
+
+    clip_response = requests.post(clip_url, headers=headers, json=clip_data)
+
+    if clip_response.status_code != 200:
+        return {"error": "Failed to create video clip"}
+
+    clip_data = clip_response.json()
     return {
-        "original": video.assets['player'],
-        "trimmed": clip.assets['player']
+        "original": response.json()["video"]["playbackUrl"],
+        "trimmed": clip_data["clip"]["playbackUrl"]
     }
 
 @app.route("/clip", methods=["POST"])
